@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Растение без земли</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --purple:#2d1b4e;--purple-light:#4a2d7a;--yellow:#f5c842;
+  --green:#3ecf8e;--green-dark:#1a7a4a;--white:#f0eef5;
+  --mist:rgba(180,220,255,0.6);
+}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:'Segoe UI',system-ui,sans-serif;
+  background:var(--purple);color:var(--white);
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;position:relative;
+}
+
+/* ===== ЯЧЕЙКА ПАЗЗЛА ===== */
+.puzzle-cell{
+  position:fixed;top:16px;right:16px;
+  width:56px;height:56px;
+  border:2px dashed var(--yellow);border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;font-weight:700;color:var(--yellow);
+  cursor:pointer;z-index:50;
+  background:rgba(245,200,66,0.08);
+  transition:all .3s;
+}
+.puzzle-cell:active{transform:scale(.93)}
+.puzzle-cell.opened{
+  border-style:solid;background:rgba(62,207,142,0.15);
+  border-color:var(--green);cursor:default;
+}
+.puzzle-cell.opened .cell-number{display:none}
+.puzzle-piece{display:none;width:40px;height:40px}
+.puzzle-cell.opened .puzzle-piece{display:block}
+
+/* ===== ОСНОВНАЯ СЦЕНА ===== */
+.scene{
+  width:100%;max-width:420px;height:100vh;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:20px;position:relative;
+}
+
+/* ===== РАСТЕНИЕ ===== */
+.plant-area{
+  position:relative;width:220px;height:280px;
+  cursor:pointer;transition:transform .2s;
+  flex-shrink:0;
+}
+.plant-area:active{transform:scale(.97)}
+.plant-area.alive{cursor:default}
+.plant-area.alive:active{transform:none}
+
+.plant-svg{width:100%;height:100%}
+.plant-svg .outline{
+  fill:none;stroke:var(--green);stroke-width:2;
+  stroke-dasharray:6 4;transition:all .8s;
+}
+.plant-area.alive .plant-svg .outline{
+  fill:var(--green);stroke:var(--green-dark);
+  stroke-dasharray:0;stroke-width:1.5;opacity:.85;
+}
+.plant-svg .stem{
+  fill:none;stroke:var(--green);stroke-width:2.5;
+  stroke-dasharray:6 4;transition:all .8s;
+}
+.plant-area.alive .plant-svg .stem{
+  stroke:var(--green-dark);stroke-dasharray:0;stroke-width:3;
+}
+
+/* Пустое место под корнями */
+.root-placeholder{
+  position:absolute;bottom:18px;left:50%;
+  transform:translateX(-50%);
+  width:80px;height:40px;
+  border:2px dashed rgba(240,238,245,0.3);
+  border-radius:0 0 40px 40px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;color:rgba(240,238,245,0.4);
+  text-align:center;line-height:1.2;
+  transition:opacity .5s;
+}
+.plant-area.alive .root-placeholder{opacity:0;pointer-events:none}
+
+/* Корни */
+.roots{
+  position:absolute;bottom:0;left:50%;
+  transform:translateX(-50%);
+  width:120px;height:70px;
+  opacity:0;transition:opacity .8s .3s;
+}
+.plant-area.alive .roots{opacity:1}
+.roots svg{width:100%;height:100%}
+
+/* Капли тумана */
+.mist-container{
+  position:absolute;bottom:-10px;left:50%;
+  transform:translateX(-50%);
+  width:160px;height:90px;
+  pointer-events:none;opacity:0;
+  transition:opacity 1s .6s;
+}
+.plant-area.alive .mist-container{opacity:1}
+.mist-drop{
+  position:absolute;border-radius:50%;
+  background:var(--mist);
+  animation:mistFloat 2.5s infinite ease-in-out;
+}
+@keyframes mistFloat{
+  0%{transform:translateY(0) scale(1);opacity:.7}
+  50%{transform:translateY(-20px) scale(1.3);opacity:.3}
+  100%{transform:translateY(-40px) scale(.6);opacity:0}
+}
+
+/* Подпись аэропоника */
+.aero-label{
+  position:absolute;bottom:-30px;left:50%;
+  transform:translateX(-50%);
+  font-size:13px;font-weight:700;
+  color:var(--yellow);letter-spacing:1px;
+  text-transform:uppercase;
+  opacity:0;transition:opacity .6s 1s;
+  white-space:nowrap;
+}
+.plant-area.alive .aero-label{opacity:1}
+
+/* ===== ТЕКСТ ЗАДАНИЯ ===== */
+.task-text{
+  margin-top:24px;text-align:center;
+  font-size:16px;line-height:1.5;
+  color:rgba(240,238,245,0.8);
+  transition:opacity .4s;
+  max-width:320px;
+}
+.task-text.hidden{opacity:0;height:0;margin:0;overflow:hidden}
+
+/* ===== ВОПРОС ===== */
+.question-area{
+  width:100%;max-width:360px;
+  margin-top:20px;text-align:center;
+  opacity:0;transform:translateY(20px);
+  transition:all .5s;pointer-events:none;
+}
+.question-area.visible{
+  opacity:1;transform:translateY(0);pointer-events:auto;
+}
+.question-text{
+  font-size:17px;font-weight:600;
+  margin-bottom:16px;color:var(--yellow);
+  line-height:1.4;
+}
+.answers{display:flex;flex-direction:column;gap:10px}
+.answer-btn{
+  padding:14px 20px;border:2px solid var(--green);
+  border-radius:12px;background:rgba(62,207,142,0.1);
+  color:var(--white);font-size:15px;font-weight:500;
+  cursor:pointer;transition:all .2s;
+  -webkit-tap-highlight-color:transparent;
+}
+.answer-btn:active{
+  background:rgba(62,207,142,0.3);transform:scale(.97);
+}
+.answer-btn.wrong{
+  border-color:#e74c3c;background:rgba(231,76,60,0.15);
+  animation:shake .4s;
+}
+.answer-btn.correct{
+  border-color:var(--yellow);background:rgba(245,200,66,0.2);
+}
+@keyframes shake{
+  0%,100%{transform:translateX(0)}
+  25%{transform:translateX(-8px)}
+  75%{transform:translateX(8px)}
+}
+
+/* Подсказка при ошибке */
+.hint{
+  margin-top:14px;font-size:14px;
+  color:rgba(240,238,245,0.7);line-height:1.5;
+  opacity:0;transition:opacity .3s;
+}
+.hint.visible{opacity:1}
+.retry-btn{
+  margin-top:10px;padding:10px 24px;
+  border:1px solid var(--yellow);border-radius:8px;
+  background:transparent;color:var(--yellow);
+  font-size:14px;cursor:pointer;
+  display:none;
+}
+.retry-btn.visible{display:inline-block}
+
+/* ===== РЕЗУЛЬТАТ ===== */
+.result-area{
+  width:100%;max-width:360px;
+  margin-top:20px;text-align:center;
+  opacity:0;transform:translateY(20px);
+  transition:all .6s;pointer-events:none;
+}
+.result-area.visible{
+  opacity:1;transform:translateY(0);pointer-events:auto;
+}
+.result-text{
+  font-size:15px;line-height:1.6;
+  color:var(--white);margin-bottom:20px;
+}
+.result-text strong{color:var(--yellow)}
+.next-btn{
+  padding:16px 40px;border:none;border-radius:14px;
+  background:linear-gradient(135deg,var(--green),var(--green-dark));
+  color:#fff;font-size:17px;font-weight:700;
+  cursor:pointer;display:inline-flex;
+  align-items:center;gap:8px;
+  box-shadow:0 4px 20px rgba(62,207,142,0.3);
+  transition:transform .2s;
+}
+.next-btn:active{transform:scale(.95)}
+.next-btn .arrow{font-size:20px}
+
+/* ===== МОДАЛЬНОЕ ОКНО ===== */
+.modal-overlay{
+  position:fixed;inset:0;
+  background:rgba(0,0,0,0.7);
+  display:flex;align-items:center;justify-content:center;
+  z-index:200;opacity:0;pointer-events:none;
+  transition:opacity .3s;padding:20px;
+}
+.modal-overlay.visible{opacity:1;pointer-events:auto}
+.modal-box{
+  background:var(--purple-light);
+  border:2px solid var(--yellow);border-radius:16px;
+  padding:28px 24px;max-width:320px;width:100%;
+  text-align:center;
+}
+.modal-text{font-size:15px;line-height:1.6;margin-bottom:18px}
+.modal-btn{
+  padding:12px 32px;border:2px solid var(--yellow);
+  border-radius:10px;background:transparent;
+  color:var(--yellow);font-size:15px;font-weight:600;
+  cursor:pointer;
+}
+.modal-btn:active{background:rgba(245,200,66,0.15)}
+
+/* ===== ПРОВЕРКА ЛОКАЦИИ ===== */
+.location-check{
+  margin-top:14px;display:none;
+  flex-direction:column;align-items:center;gap:10px;
+}
+.location-check.visible{display:flex}
+.loc-btn{
+  padding:12px 24px;border:2px solid var(--green);
+  border-radius:10px;background:rgba(62,207,142,0.12);
+  color:var(--green);font-size:14px;font-weight:600;
+  cursor:pointer;
+}
+.loc-input-wrap{display:none;flex-direction:column;align-items:center;gap:8px;width:100%}
+.loc-input-wrap.visible{display:flex}
+.loc-input{
+  padding:10px 16px;border:2px solid var(--yellow);
+  border-radius:8px;background:rgba(255,255,255,0.08);
+  color:var(--white);font-size:15px;text-align:center;
+  width:200px;outline:none;
+}
+.loc-input::placeholder{color:rgba(240,238,245,0.4)}
+.loc-submit{
+  padding:10px 20px;border:none;border-radius:8px;
+  background:var(--yellow);color:var(--purple);
+  font-size:14px;font-weight:700;cursor:pointer;
+}
+
+/* ===== АДАПТИВ ===== */
+@media(max-height:680px){
+  .plant-area{width:160px;height:210px}
+  .task-text{font-size:14px;margin-top:12px}
+  .question-text{font-size:15px}
+  .answer-btn{padding:11px 16px;font-size:14px}
+}
+@media(max-height:580px){
+  .plant-area{width:130px;height:170px}
+}
+</style>
+</head>
+<body>
+
+<!-- Ячейка паззла -->
+<div class="puzzle-cell" id="puzzleCell">
+  <span class="cell-number">4</span>
+  <svg class="puzzle-piece" viewBox="0 0 40 40">
+    <path d="M5 10 Q5 5 10 5 L16 5 Q16 2 20 2 Q24 2 24 5 L30 5 Q35 5 35 10 L35 16 Q38 16 38 20 Q38 24 35 24 L35 30 Q35 35 30 35 L24 35 Q24 38 20 38 Q16 38 16 35 L10 35 Q5 35 5 30 Z"
+      fill="var(--green)" stroke="var(--yellow)" stroke-width="1.5"/>
+    <text x="20" y="24" text-anchor="middle" font-size="12" font-weight="700" fill="var(--purple)">4</text>
+  </svg>
+</div>
+
+<div class="scene">
+
+  <!-- Растение -->
+  <div class="plant-area" id="plantArea">
+    <svg class="plant-svg" viewBox="0 0 220 280">
+      <!-- Стебель -->
+      <path class="stem" d="M110 250 Q108 200 112 160 Q115 120 110 80"/>
+      <!-- Листья -->
+      <path class="outline" d="M110 80 Q80 50 60 70 Q50 85 75 95 Q95 100 110 90"/>
+      <path class="outline" d="M110 80 Q140 45 165 65 Q175 80 150 92 Q130 98 110 88"/>
+      <path class="outline" d="M112 130 Q75 110 65 130 Q58 148 85 150 Q105 148 112 138"/>
+      <path class="outline" d="M112 130 Q148 108 160 128 Q168 146 142 150 Q122 148 112 138"/>
+      <path class="outline" d="M110 175 Q82 162 72 178 Q66 192 90 192 Q106 188 110 180"/>
+      <path class="outline" d="M110 175 Q138 160 150 176 Q156 192 132 192 Q116 188 110 180"/>
+    </svg>
+
+    <!-- Пустое место под корнями -->
+    <div class="root-placeholder">здесь должно<br>что-то быть</div>
+
+    <!-- Корни -->
+    <div class="roots">
+      <svg viewBox="0 0 120 70">
+        <path d="M60 0 Q55 20 40 35 Q30 45 25 65" fill="none" stroke="#8B6914" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M60 0 Q62 25 55 40 Q50 55 48 68" fill="none" stroke="#8B6914" stroke-width="2" stroke-linecap="round"/>
+        <path d="M60 0 Q65 18 75 32 Q82 45 85 62" fill="none" stroke="#8B6914" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M60 0 Q58 15 68 28 Q78 40 92 55" fill="none" stroke="#8B6914" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M60 0 Q50 12 38 22 Q28 32 18 50" fill="none" stroke="#8B6914" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M60 0 Q68 10 80 18 Q90 28 98 42" fill="none" stroke="#8B6914" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+
+    <!-- Капли тумана -->
+    <div class="mist-container" id="mistContainer"></div>
+
+    <!-- Подпись -->
+    <div class="aero-label">✦ аэропоника ✦</div>
+  </div>
+
+  <!-- Текст задания -->
+  <div class="task-text" id="taskText">
+    Найди растение, которое растёт без земли.<br>Нажми на него 👆
+  </div>
+
+  <!-- Вопрос -->
+  <div class="question-area" id="questionArea">
+    <div class="question-text">Как растение получает питание без земли?</div>
+    <div class="answers">
+      <button class="answer-btn" data-answer="water">💧 Из воды</button>
+      <button class="answer-btn" data-answer="air">🌬 Из воздуха</button>
+      <button class="answer-btn" data-answer="sun">☀️ Из солнечного света</button>
+    </div>
+    <div class="hint" id="hint">
+      Посмотри на корни. Они висят в воздухе. Откуда тогда берётся питание?
+    </div>
+    <button class="retry-btn" id="retryBtn">Попробовать снова</button>
+  </div>
+
+  <!-- Результат -->
+  <div class="result-area" id="resultArea">
+    <div class="result-text">
+      <strong>Аэропоника</strong> — растения растут без почвы.
+      Питание подаётся в виде тумана прямо на корни,
+      которые свободно висят в воздухе.
+    </div>
+    <button class="next-btn" id="nextBtn">
+      Дальше <span class="arrow">→</span>
+    </button>
+  </div>
+
+</div>
+
+<!-- Модальное окно -->
+<div class="modal-overlay" id="modal">
+  <div class="modal-box">
+    <div class="modal-text" id="modalText"></div>
+    <button class="modal-btn" id="modalBtn">Понятно</button>
+  </div>
+</div>
+
+<script>
+// ===== СОСТОЯНИЕ =====
+const state = {
+  plantClicked: false,
+  answered: false,
+  puzzleOpen: false,
+  locationVerified: false
+};
+
+// ===== ЭЛЕМЕНТЫ =====
+const plantArea    = document.getElementById('plantArea');
+const taskText     = document.getElementById('taskText');
+const questionArea = document.getElementById('questionArea');
+const hint         = document.getElementById('hint');
+const retryBtn     = document.getElementById('retryBtn');
+const resultArea   = document.getElementById('resultArea');
+const puzzleCell   = document.getElementById('puzzleCell');
+const modal        = document.getElementById('modal');
+const modalText    = document.getElementById('modalText');
+const modalBtn     = document.getElementById('modalBtn');
+const mistContainer= document.getElementById('mistContainer');
+const answerBtns   = document.querySelectorAll('.answer-btn');
+const nextBtn      = document.getElementById('nextBtn');
+
+// ===== ГЕНЕРАЦИЯ КАПЕЛЬ ТУМАНА =====
+function createMist(){
+  for(let i=0;i<18;i++){
+    const drop=document.createElement('div');
+    drop.className='mist-drop';
+    const size=4+Math.random()*8;
+    drop.style.width=size+'px';
+    drop.style.height=size+'px';
+    drop.style.left=Math.random()*100+'%';
+    drop.style.bottom=Math.random()*30+'%';
+    drop.style.animationDelay=(Math.random()*2.5)+'s';
+    drop.style.animationDuration=(2+Math.random()*2)+'s';
+    mistContainer.appendChild(drop);
+  }
+}
+createMist();
+
+// ===== ЗВУК СИГНАЛА (Web Audio API) =====
+function playSignal(){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const notes=[660,880,1100];
+    notes.forEach((freq,i)=>{
+      const osc=ctx.createOscillator();
+      const gain=ctx.createGain();
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.frequency.value=freq;
+      osc.type='sine';
+      const t=ctx.currentTime+i*0.15;
+      gain.gain.setValueAtTime(0.2,t);
+      gain.gain.exponentialRampToValueAtTime(0.001,t+0.4);
+      osc.start(t);osc.stop(t+0.4);
+    });
+  }catch(e){}
+}
+
+// ===== МОДАЛЬНОЕ ОКНО =====
+function showModal(text){
+  modalText.textContent=text;
+  modal.classList.add('visible');
+}
+modalBtn.addEventListener('click',()=>{
+  modal.classList.remove('visible');
+});
+
+// ===== ДЕЙСТВИЕ 1: НАЖАТИЕ НА РАСТЕНИЕ =====
+plantArea.addEventListener('click',()=>{
+  if(state.plantClicked) return;
+  state.plantClicked=true;
+
+  plantArea.classList.add('alive');
+  taskText.classList.add('hidden');
+
+  setTimeout(()=>{
+    questionArea.classList.add('visible');
+  },800);
+});
+
+// ===== ДЕЙСТВИЕ 2: ВЫБОР ОТВЕТА =====
+answerBtns.forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    if(state.answered) return;
+    const answer=btn.dataset.answer;
+
+    if(answer==='air'){
+      // ВЕРНЫЙ ОТВЕТ
+      btn.classList.add('correct');
+      state.answered=true;
+      hint.classList.remove('visible');
+      retryBtn.classList.remove('visible');
+
+      // Блокируем кнопки
+      answerBtns.forEach(b=>b.style.pointerEvents='none');
+
+      // Проверка локации → открытие паззла
+      setTimeout(()=>checkLocation(),600);
+
+    } else {
+      // НЕВЕРНЫЙ ОТВЕТ
+      btn.classList.add('wrong');
+      hint.classList.add('visible');
+      retryBtn.classList.add('visible');
+      setTimeout(()=>btn.classList.remove('wrong'),500);
+    }
+  });
+});
+
+// Кнопка «Попробовать снова»
+retryBtn.addEventListener('click',()=>{
+  hint.classList.remove('visible');
+  retryBtn.classList.remove('visible');
+});
+
+// ===== ПРОВЕРКА ЛОКАЦИИ =====
+function checkLocation(){
+  // Координаты Зарядья
+  const TARGET_LAT=55.7512;
+  const TARGET_LON=37.6287;
+  const RADIUS_KM=0.5;
+
+  if('geolocation' in navigator){
+    navigator.geolocation.getCurrentPosition(
+      pos=>{
+        const dist=getDistance(pos.coords.latitude,pos.coords.longitude,TARGET_LAT,TARGET_LON);
+        if(dist<=RADIUS_KM){
+          state.locationVerified=true;
+          completeQuest();
+        } else {
+          askForCode();
+        }
+      },
+      ()=>askForCode(),
+      {timeout:5000}
+    );
+  } else {
+    askForCode();
+  }
+}
+
+function getDistance(lat1,lon1,lat2,lon2){
+  const R=6371;
+  const dLat=(lat2-lat1)*Math.PI/180;
+  const dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function askForCode(){
+  questionArea.innerHTML=`
+    <div class="question-text" style="color:var(--green)">Ответ верный! 🎉</div>
+    <p style="font-size:14px;margin-bottom:12px;opacity:.8">Подтверди, что ты в Зарядье</p>
+    <div class="location-check visible">
+      <div class="loc-input-wrap visible">
+        <input class="loc-input" id="locCode" placeholder="Код точки" autocomplete="off">
+        <button class="loc-submit" id="locSubmit">Подтвердить</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('locSubmit').addEventListener('click',()=>{
+    const code=document.getElementById('locCode').value.trim().toLowerCase();
+    if(code==='зарядье'||code==='zaryadye'||code==='4'){
+      state.locationVerified=true;
+      completeQuest();
+    } else {
+      document.getElementById('locCode').style.borderColor='#e74c3c';
+      document.getElementById('locCode').value='';
+      document.getElementById('locCode').placeholder='Попробуй ещё раз';
+    }
+  });
+  document.getElementById('locCode').addEventListener('keydown',e=>{
+    if(e.key==='Enter') document.getElementById('locSubmit').click();
+  });
+}
+
+// ===== ЗАВЕРШЕНИЕ КВЕСТА =====
+function completeQuest(){
+  state.puzzleOpen=true;
+
+  // Открываем паззл
+  puzzleCell.classList.add('opened');
+  playSignal();
+
+  // Скрываем вопрос, показываем результат
+  questionArea.classList.remove('visible');
+  setTimeout(()=>{
+    resultArea.classList.add('visible');
+  },400);
+}
+
+// ===== НАРУШЕНИЕ ПОРЯДКА: КЛИК ПО ПАЗЗЛУ =====
+puzzleCell.addEventListener('click',()=>{
+  if(state.puzzleOpen) return;
+  showModal('Сначала найди растение и ответь на вопрос. Фрагмент откроется после этого.');
+});
+
+// ===== КНОПКА «ДАЛЬШЕ» =====
+nextBtn.addEventListener('click',()=>{
+  showModal('Подсказка к следующему шагу: иди к парящему мосту и найди точку с видом на реку. Там тебя ждёт фрагмент №5! 🗺️');
+});
+</script>
+</body>
+</html>
